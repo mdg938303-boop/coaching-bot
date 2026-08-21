@@ -349,6 +349,22 @@ async def stu_add_admission_date(update: Update, context: ContextTypes.DEFAULT_T
             await update.message.reply_text("⚠️ তারিখ ফরম্যাট ভুল। DD-MM-YYYY দিন, অথবা - লিখুন।")
             return st.STUDENT_ADD_ADMISSION_DATE
 
+    context.user_data["student_form"]["admission_date"] = admission_date
+    await update.message.reply_text(
+        "💰 মাসিক ফি কত টাকা? (শুধু সংখ্যা লিখুন, যেমন 1500)। ফি নেই এমন হলে 0 লিখুন।"
+    )
+    return st.STUDENT_ADD_FEE
+
+
+async def stu_add_fee(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    text = update.message.text.strip()
+    if text == akb.BTN_CANCEL:
+        return await cancel_flow(update, context)
+    if not text.isdigit():
+        await update.message.reply_text("⚠️ শুধু সংখ্যা দিন (যেমন 1500, ফি না থাকলে 0):")
+        return st.STUDENT_ADD_FEE
+    monthly_fee = int(text)
+
     form = context.user_data.pop("student_form")
     async with get_session() as session:
         code = await unique_access_code(session)
@@ -358,15 +374,16 @@ async def stu_add_admission_date(update: Update, context: ContextTypes.DEFAULT_T
             roll_number=form["roll_number"],
             guardian_phone=form["guardian_phone"],
             address=form["address"],
-            admission_date=admission_date,
+            admission_date=form["admission_date"],
             guardian_access_code=code,
+            monthly_fee=monthly_fee,
         )
         session.add(student)
         await session.commit()
         classroom = await session.get(ClassRoom, form["class_id"])
         await log_activity(
             session, update.effective_user.id, "add_student",
-            f"name={form['name']} class={classroom.name}",
+            f"name={form['name']} class={classroom.name} fee={monthly_fee}",
         )
 
     from keyboards.admin import admin_main_menu
@@ -374,10 +391,11 @@ async def stu_add_admission_date(update: Update, context: ContextTypes.DEFAULT_T
         f"✅ Student তৈরি হয়েছে!\n\n"
         f"👤 নাম: {form['name']}\n"
         f"🔢 Roll: {form['roll_number']}\n"
-        f"📚 Class: {classroom.name}\n\n"
+        f"📚 Class: {classroom.name}\n"
+        f"💰 মাসিক ফি: {monthly_fee} টাকা\n\n"
         f"🔑 Guardian Access Code: `{code}`\n\n"
         f"এই কোডটি অভিভাবককে দিন — তিনি বটে গিয়ে '🔗 Link My Child' চেপে এটি "
-        f"দিয়ে লিংক করলে তবেই Absence Notification পাবেন।",
+        f"দিয়ে লিংক করলে তবেই Absence/Fee Notification পাবেন।",
         reply_markup=admin_main_menu(is_admin(update.effective_user.id)),
         parse_mode="Markdown",
     )
@@ -464,9 +482,17 @@ async def stu_view(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 GuardianStudentLink.student_id == student_id
             )
         )
+        from services.fee_service import get_fee_status
+        from utils.helpers import current_month_str, format_month
+        month = current_month_str()
+        fee_info = await get_fee_status(session, student, month)
     pct = percentage(present or 0, total or 0)
     status = "🟢 Active" if student.is_active else "🔴 Inactive"
     linked_text = "✅ হ্যাঁ" if guardian_linked else "❌ না"
+    fee_icons = {"NO_FEE": "⚪ ফি নেই", "PAID": "🟢 পরিশোধিত", "PARTIAL": "🟡 আংশিক পরিশোধিত", "DUE": "🔴 বকেয়া"}
+    fee_line = f"💰 মাসিক ফি: {student.monthly_fee} টাকা | {format_month(month)}: {fee_icons[fee_info['status']]}"
+    if fee_info["status"] in ("DUE", "PARTIAL"):
+        fee_line += f" (বকেয়া: {fee_info['due']} টাকা)"
     text = (
         f"👤 {student.name}\n"
         f"🔢 Roll: {student.roll_number}\n"
@@ -477,7 +503,8 @@ async def stu_view(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"Status: {status}\n"
         f"👪 Guardian Linked: {linked_text}\n"
         f"🔑 Access Code: `{student.guardian_access_code}`\n\n"
-        f"📊 Attendance: {present or 0}/{total or 0} ({pct}%)"
+        f"📊 Attendance: {present or 0}/{total or 0} ({pct}%)\n"
+        f"{fee_line}"
     )
     await q.edit_message_text(
         text, reply_markup=akb.student_detail_inline(student_id, student.is_active),
@@ -596,7 +623,7 @@ async def stu_editfield_start(update: Update, context: ContextTypes.DEFAULT_TYPE
     student_id, field = int(parts[2]), parts[3]
     context.user_data["edit_student_id"] = student_id
     context.user_data["edit_field"] = field
-    labels = {"name": "নাম", "roll": "Roll Number", "phone": "অভিভাবকের নম্বর", "address": "ঠিকানা"}
+    labels = {"name": "নাম", "roll": "Roll Number", "phone": "অভিভাবকের নম্বর", "address": "ঠিকানা", "fee": "মাসিক ফি (শুধু সংখ্যা)"}
     await q.message.reply_text(f"✍️ নতুন {labels[field]} লিখুন:", reply_markup=akb.cancel_keyboard())
     return st.STUDENT_EDIT_FIELD_VALUE
 
@@ -625,6 +652,13 @@ async def stu_editfield_save(update: Update, context: ContextTypes.DEFAULT_TYPE)
             student.roll_number = value
         elif field == "phone":
             student.guardian_phone = value
+        elif field == "fee":
+            if not value.isdigit():
+                await update.message.reply_text("⚠️ শুধু সংখ্যা দিন (যেমন 1500):")
+                context.user_data["edit_student_id"] = student_id
+                context.user_data["edit_field"] = field
+                return st.STUDENT_EDIT_FIELD_VALUE
+            student.monthly_fee = int(value)
         elif field == "address":
             student.address = value
         await session.commit()
@@ -681,6 +715,7 @@ student_add_conv = ConversationHandler(
         st.STUDENT_ADD_GUARDIAN_PHONE: [MessageHandler(filters.TEXT & ~filters.COMMAND, stu_add_phone)],
         st.STUDENT_ADD_ADDRESS: [MessageHandler(filters.TEXT & ~filters.COMMAND, stu_add_address)],
         st.STUDENT_ADD_ADMISSION_DATE: [MessageHandler(filters.TEXT & ~filters.COMMAND, stu_add_admission_date)],
+        st.STUDENT_ADD_FEE: [MessageHandler(filters.TEXT & ~filters.COMMAND, stu_add_fee)],
     },
     fallbacks=[
         MessageHandler(filters.Regex(f"^{akb.BTN_CANCEL}$"), cancel_flow),
@@ -1219,8 +1254,47 @@ broadcast_conv = ConversationHandler(
 # একগুচ্ছ সাধারণ (non-conversation) CallbackQueryHandler
 # =========================================================
 
+async def settings_sms_toggle(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    q = update.callback_query
+    if not await _require_admin(update):
+        return
+    from config import SMS_API_KEY
+    from utils.helpers import SMS_ENABLED_KEY, is_sms_enabled, set_setting
+
+    async with get_session() as session:
+        currently_enabled = await is_sms_enabled(session)
+        new_value = "false" if currently_enabled else "true"
+        if new_value == "true" and not SMS_API_KEY:
+            await q.answer(
+                "⚠️ SMS_API_KEY .env-এ সেট করা নেই, তাই SMS চালু করা যাচ্ছে না। "
+                "আগে .env-এ SMS_PROVIDER/SMS_API_KEY/SMS_SENDER_ID সেট করে বট রিস্টার্ট করুন।",
+                show_alert=True,
+            )
+            return
+        await set_setting(session, SMS_ENABLED_KEY, new_value)
+        await log_activity(
+            session, update.effective_user.id, "settings_sms_toggle", f"enabled={new_value}"
+        )
+        sms_enabled = new_value == "true"
+
+    await q.answer("✅ আপডেট হয়েছে।")
+    status = "🟢 চালু" if sms_enabled else "🔴 বন্ধ"
+    await q.edit_message_text(
+        f"⚙️ Settings\n\n📩 Direct SMS নোটিফিকেশন: {status}\n\n"
+        "Absent/Fee Due হলে Telegram-এর পাশাপাশি অভিভাবকের ফোনে সরাসরি SMS "
+        "পাঠাতে চাইলে এখান থেকে চালু করুন।",
+        reply_markup=akb.settings_menu_inline(sms_enabled, sms_configured=bool(SMS_API_KEY)),
+    )
+
+
+async def noop_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.callback_query.answer()
+
+
 def get_admin_callback_handlers():
     return [
+        CallbackQueryHandler(noop_callback, pattern=r"^noop:"),
+        CallbackQueryHandler(settings_sms_toggle, pattern=r"^settings:sms:toggle$"),
         CallbackQueryHandler(cls_list, pattern=r"^cls:list:\d+$"),
         CallbackQueryHandler(cls_view, pattern=r"^cls:view:\d+$"),
         CallbackQueryHandler(cls_toggle_active, pattern=r"^cls:(activate|deactivate):\d+$"),

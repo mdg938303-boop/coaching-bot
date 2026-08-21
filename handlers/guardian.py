@@ -166,6 +166,41 @@ async def child_history(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await q.edit_message_text("\n".join(lines))
 
 
+async def child_fee_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    q = update.callback_query
+    await q.answer()
+    student_id = int(q.data.split(":")[-1])
+    uid = update.effective_user.id
+    from services.fee_service import get_fee_status
+    from utils.helpers import current_month_str, format_month
+
+    async with get_session() as session:
+        link = await session.execute(
+            select(GuardianStudentLink).where(
+                GuardianStudentLink.guardian_id == uid, GuardianStudentLink.student_id == student_id
+            )
+        )
+        if not link.scalar_one_or_none():
+            await q.edit_message_text("⛔ এই Student আপনার সাথে Link করা নেই।")
+            return
+        student = await session.get(Student, student_id)
+        month = current_month_str()
+        status = await get_fee_status(session, student, month)
+
+    if status["status"] == "NO_FEE":
+        text = f"💰 {student.name} — এই Student-এর জন্য কোনো ফি নির্ধারিত নেই।"
+    else:
+        icon = {"PAID": "🟢 সম্পূর্ণ পরিশোধিত", "PARTIAL": "🟡 আংশিক পরিশোধিত", "DUE": "🔴 বকেয়া"}
+        text = (
+            f"💰 {student.name} — {format_month(month)}\n\n"
+            f"মাসিক ফি: {status['monthly_fee']} টাকা\n"
+            f"পরিশোধিত: {status['paid']} টাকা\n"
+            f"বকেয়া: {status['due']} টাকা\n"
+            f"অবস্থা: {icon[status['status']]}"
+        )
+    await q.edit_message_text(text)
+
+
 async def child_back_to_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
     await q.answer()
@@ -199,5 +234,6 @@ def get_guardian_callback_handlers():
     return [
         CallbackQueryHandler(child_view, pattern=r"^gch:view:\d+$"),
         CallbackQueryHandler(child_history, pattern=r"^gch:history:\d+$"),
+        CallbackQueryHandler(child_fee_status, pattern=r"^gch:fee:\d+$"),
         CallbackQueryHandler(child_back_to_list, pattern=r"^gch:list$"),
     ]

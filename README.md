@@ -11,6 +11,10 @@ Absent হলে অভিভাবককে automatic Telegram নোটিফ�
 - Class-wise Daily Attendance (Present/Absent টগল, "সবাইকে Present করুন",
   Overwrite confirmation)
 - Guardian Auto-Notification on Absence (শুধু Linked guardian-দের কাছে)
+- **💰 Fee/বেতন সিস্টেম** — প্রতি Student-এর আলাদা মাসিক ফি (ভর্তির সময় সেট,
+  পরে এডিটযোগ্য), Payment রেকর্ড (Amount/Method/Month/কে নিয়েছে), Fee Status
+  by Class, Student Fee History, Due List, এবং **Automatic Due Reminder**
+  (প্রতি মাসের নির্দিষ্ট তারিখে বকেয়া থাকলে guardian-কে automatic মেসেজ)
 - Guardian Self-Linking System (Access Code দিয়ে)
 - Teacher sub-admin role (শুধু নিজের assign করা Class-এর হাজিরা)
 - Reports: আজকের সামারি, Student History, Class-wise Monthly Sheet, Low
@@ -71,6 +75,16 @@ SQLite (local/dev) বা PostgreSQL/Neon (production)
   status (PRESENT/ABSENT), notified (bool)
 - `activity_logs` — id, actor_id, action, details, created_at
 - `settings` — key, value
+- `fee_payments` — id, student_id (FK), amount, month ("YYYY-MM" স্ট্রিং),
+  payment_method, paid_by (Telegram id), paid_at
+
+`students` টেবিলে নতুন কলাম যোগ হয়েছে: `monthly_fee` (Integer, ডিফল্ট 0)।
+
+⚠️ **আগে থেকে ডিপ্লয় করা বট থাকলে চিন্তার কিছু নেই** — `main.py` স্টার্ট
+হওয়ার সময় `init_db()` স্বয়ংক্রিয়ভাবে চেক করে দেখে `monthly_fee` কলাম আছে
+কিনা; না থাকলে নিজে থেকেই `ALTER TABLE` দিয়ে যোগ করে দেয়, এবং নতুন
+`fee_payments` টেবিলও নিজে থেকেই তৈরি হয়ে যায়। কোনো ম্যানুয়াল migration
+কমান্ড চালানোর দরকার নেই — শুধু নতুন কোড push করে বট রিস্টার্ট করলেই যথেষ্ট।
 
 ## 📁 Folder Structure
 
@@ -85,12 +99,14 @@ project/
 │   ├── nav.py
 │   ├── admin.py
 │   ├── attendance.py
+│   ├── fees.py
 │   └── guardian.py
 ├── keyboards/
 │   ├── admin.py
 │   └── guardian.py
 ├── services/
 │   ├── attendance_service.py
+│   ├── fee_service.py
 │   └── notification_service.py
 ├── utils/
 │   ├── helpers.py
@@ -109,6 +125,11 @@ BOT_TOKEN=your_bot_token_from_botfather
 ADMIN_IDS=111111111,222222222
 DATABASE_URL=sqlite+aiosqlite:///./coaching_bot.db
 WEBHOOK_BASE_URL=
+
+# Fee সিস্টেম (ঐচ্ছিক, ডিফল্ট মান কাজ করবে)
+FEE_REMINDER_DAYS=5,15,25
+FEE_REMINDER_HOUR=10
+FEE_REMINDER_MINUTE=0
 ```
 
 কোনো secret code হার্ড-কোড করা নেই — সবকিছু `.env` থেকে আসে।
@@ -208,6 +229,80 @@ Linked guardian-রা সাথে সাথে নোটিফিকেশন 
 - [ ] সব admin action Activity Logs-এ দেখা যায়
 - [ ] Broadcast সব Linked guardian-কে মেসেজ পাঠায়, ব্যর্থ হলে গণনা করে
       দেখায় কিন্তু পুরো প্রক্রিয়া আটকায় না
+- [ ] Student-এর মাসিক ফি সেট/এডিট করা যায়
+- [ ] একই মাসে একাধিকবার আংশিক পেমেন্ট নিলে সঠিকভাবে যোগ হয়ে status
+      আপডেট হয় (Due → Partial → Paid)
+- [ ] Due List / Fee Status by Class সঠিক তথ্য দেখায়
+- [ ] Fee Reminder Day-তে (`FEE_REMINDER_DAYS`) বকেয়া থাকা Student-দের
+      Linked guardian-রা automatic মেসেজ পান
+- [ ] Guardian নিজের সন্তানের Fee Status দেখতে পারে, অন্য কারো নয়
+
+## 💰 Fee/বেতন সিস্টেম — বিস্তারিত
+
+### কিভাবে কাজ করে
+- Student যোগ করার সময় তার **মাসিক ফি** সেট করতে হয় (টাকার অংক, ফি না থাকলে
+  `0`)। পরে **👨‍🎓 Students → [Student] → ✏️ Edit Info → 💰 মাসিক ফি**
+  থেকে যেকোনো সময় পরিবর্তন করা যায়।
+- **💰 Fees → 💰 Record Payment**: Class → Student → কত টাকা → কোন মাস
+  (ডিফল্ট চলতি মাস, `YYYY-MM` দিয়ে অন্য মাসও দেওয়া যায়) → Payment Method
+  (Cash/bKash/Nagad/Rocket/Bank Transfer/Other) → সেভ হয়ে যায়। একই মাসে
+  একাধিকবার পেমেন্ট নিলে (আংশিক পেমেন্ট) সবগুলো যোগ হয়ে মোট পরিশোধিত ধরা হয়।
+- একটা মাসের status তিন রকম হতে পারে: 🟢 **Paid** (সম্পূর্ণ), 🟡 **Partial**
+  (আংশিক), 🔴 **Due** (কিছুই দেওয়া হয়নি)। মাসিক ফি `0` হলে status "ফি নেই"
+  দেখাবে এবং সেই Student কখনো Due List-এ আসবে না।
+- **💰 Fees → 📋 Fee Status by Class**: Class ও মাস বেছে পুরো Class-এর ফি
+  সামারি একসাথে দেখা যায়।
+- **💰 Fees → 🧾 Student Fee History**: নির্দিষ্ট একজন Student-এর সব
+  Payment-এর ইতিহাস (মাস, টাকা, Method, তারিখ)।
+- **💰 Fees → 📉 Due List**: চলতি মাসে যাদের ফি বকেয়া/আংশিক আছে, সবার লিস্ট
+  এক জায়গায় (Class নির্বিশেষে)।
+- Guardian নিজেও **👨‍🎓 আমার সন্তানেরা → [সন্তান] → 💰 Fee Status** থেকে
+  চলতি মাসের ফি status দেখতে পারেন।
+
+### Automatic Due Reminder
+- প্রতিদিন একটা background job চেক করে আজকের তারিখ `FEE_REMINDER_DAYS`
+  (ডিফল্ট `5`)-এর মধ্যে আছে কিনা এবং সময়টা `FEE_REMINDER_HOUR:FEE_REMINDER_MINUTE`
+  (ডিফল্ট সকাল ১০টা) হয়েছে কিনা।
+- মিলে গেলে, চলতি মাসে যাদের ফি Due/Partial আছে তাদের **Linked** guardian-দের
+  কাছে automatic মেসেজ যায় — ঠিক Absence Notification-এর মতোই (guardian-কে
+  আগে বটে `/start` দিয়ে Access Code দিয়ে link করা থাকতে হবে, নাহলে মেসেজ যাবে
+  না)।
+- একাধিক তারিখ দিতে চাইলে `.env`-এ কমা দিয়ে দিন, যেমন `FEE_REMINDER_DAYS=5,15,25`
+  — প্রতিটা তারিখে চলতি মাসের বকেয়াদের আবার রিমাইন্ড করা হবে।
+- এই ফিচার কাজ করার জন্য `requirements.txt`-এ
+  `python-telegram-bot[job-queue]` থাকা আবশ্যক (আগে থেকেই যোগ করা আছে) —
+  এটা `APScheduler` ইনস্টল করে যেটা দিয়ে দৈনিক job চলে।
+
+## 📩 Direct SMS নোটিফিকেশন (ঐচ্ছিক)
+
+Telegram notification-এর পাশাপাশি, চাইলে Absent ও Fee Due হলে সরাসরি
+অভিভাবকের ফোনের SIM-এ SMS-ও পাঠানো যায় — এটা কাজে লাগে যখন কোনো guardian
+এখনো বটে Link করেননি (Telegram-এর সীমাবদ্ধতার কারণে যাদের মেসেজ যায় না,
+তাদের কাছেও SMS পৌঁছায়)।
+
+### সেটআপ
+1. একটা BD SMS Gateway অ্যাকাউন্ট নিন (বর্তমানে `bulksmsbd` ও `alphasms`
+   সাপোর্টেড — চাইলে `services/sms_service.py`-তে নতুন provider ফাংশন
+   যোগ করা যায়)।
+2. `.env`-এ বসান:
+   ```
+   SMS_PROVIDER=bulksmsbd
+   SMS_API_KEY=your_gateway_api_key
+   SMS_SENDER_ID=your_approved_sender_id
+   ```
+3. বট রিস্টার্ট করুন, তারপর Admin মেনু থেকে **⚙️ Settings → 🟢 SMS
+   নোটিফিকেশন চালু করুন** চাপুন।
+
+### কিভাবে কাজ করে
+- Absent বা Fee Due হলে প্রথমে সবসময় Telegram-এ Linked guardian-দের পাঠানো
+  হয়।
+- এর পাশাপাশি, Settings-এ SMS চালু থাকলে এবং সেই Student-এর
+  `guardian_phone` সেট করা থাকলে, সরাসরি SIM-এও SMS পাঠানো হয়।
+- SMS ব্যর্থ হলে (নেটওয়ার্ক সমস্যা, ভুল নম্বর ইত্যাদি) সেটা silently
+  ignore হয় এবং Activity Log-এ noted থাকে — কখনো Attendance/Fee flow
+  আটকায় না।
+- `SMS_API_KEY` সেট না থাকলে Settings-এ SMS চালু করার অপশনটাই দেখানো হয়
+  না (একটা সতর্কবার্তা দেখাবে)।
 
 ## 🔒 Security Notes
 

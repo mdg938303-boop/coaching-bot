@@ -72,6 +72,31 @@ async def show_teachers_menu(update: Update, context: ContextTypes.DEFAULT_TYPE)
     await update.message.reply_text("👨‍🏫 Teacher Management", reply_markup=akb.teachers_menu_inline())
 
 
+async def show_fees_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not is_admin(update.effective_user.id):
+        await update.message.reply_text("⛔ শুধু Admin এই সেকশন ব্যবহার করতে পারবে।")
+        return
+    await update.message.reply_text("💰 Fee Management", reply_markup=akb.fees_menu_inline())
+
+
+async def show_settings_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not is_admin(update.effective_user.id):
+        await update.message.reply_text("⛔ শুধু Admin এই সেকশন ব্যবহার করতে পারবে।")
+        return
+    from config import SMS_API_KEY
+    from utils.helpers import is_sms_enabled
+
+    async with get_session() as session:
+        sms_enabled = await is_sms_enabled(session)
+    status = "🟢 চালু" if sms_enabled else "🔴 বন্ধ"
+    await update.message.reply_text(
+        f"⚙️ Settings\n\n📩 Direct SMS নোটিফিকেশন: {status}\n\n"
+        "Absent/Fee Due হলে Telegram-এর পাশাপাশি অভিভাবকের ফোনে সরাসরি SMS "
+        "পাঠাতে চাইলে এখান থেকে চালু করুন।",
+        reply_markup=akb.settings_menu_inline(sms_enabled, sms_configured=bool(SMS_API_KEY)),
+    )
+
+
 async def show_logs(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update.effective_user.id):
         await update.message.reply_text("⛔ শুধু Admin এই সেকশন দেখতে পারবে।")

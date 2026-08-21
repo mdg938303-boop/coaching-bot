@@ -50,11 +50,13 @@ class Student(Base):
     admission_date: Mapped[dt.date] = mapped_column(Date, default=dt.date.today)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     guardian_access_code: Mapped[str] = mapped_column(String(20), unique=True, nullable=False)
+    monthly_fee: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     classroom: Mapped["ClassRoom"] = relationship(back_populates="students")
     guardian_links: Mapped[list["GuardianStudentLink"]] = relationship(back_populates="student")
     attendance_entries: Mapped[list["AttendanceEntry"]] = relationship(back_populates="student")
+    fee_payments: Mapped[list["FeePayment"]] = relationship(back_populates="student")
 
 
 class Teacher(Base):
@@ -156,3 +158,17 @@ class Setting(Base):
 
     key: Mapped[str] = mapped_column(String(100), primary_key=True)
     value: Mapped[str] = mapped_column(String(255), nullable=False)
+
+
+class FeePayment(Base):
+    __tablename__ = "fee_payments"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    student_id: Mapped[int] = mapped_column(ForeignKey("students.id"), nullable=False)
+    amount: Mapped[int] = mapped_column(Integer, nullable=False)
+    month: Mapped[str] = mapped_column(String(7), nullable=False)  # "YYYY-MM" ফরম্যাট
+    payment_method: Mapped[str] = mapped_column(String(30), nullable=False)
+    paid_by: Mapped[int] = mapped_column(BigInteger, nullable=False)  # Admin/Teacher telegram id
+    paid_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    student: Mapped["Student"] = relationship(back_populates="fee_payments")

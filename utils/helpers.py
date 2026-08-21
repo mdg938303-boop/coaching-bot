@@ -9,8 +9,10 @@ import string
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from config import ADMIN_IDS
-from database.models import ActivityLog, Student, Teacher, TeacherClassAssignment
+from config import ADMIN_IDS, SMS_ENABLED_DEFAULT
+from database.models import ActivityLog, Setting, Student, Teacher, TeacherClassAssignment
+
+SMS_ENABLED_KEY = "sms_notifications_enabled"
 
 CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"  # ambiguous char বাদ (0,O,1,I,L)
 
@@ -72,3 +74,35 @@ def percentage(present: int, total: int) -> float:
     if total == 0:
         return 0.0
     return round((present / total) * 100, 1)
+
+
+def current_month_str() -> str:
+    return dt.date.today().strftime("%Y-%m")
+
+
+def format_month(ym: str) -> str:
+    """'2026-08' -> 'August 2026'"""
+    year, month = map(int, ym.split("-"))
+    return dt.date(year, month, 1).strftime("%B %Y")
+
+
+async def get_setting(session, key: str, default: str = "") -> str:
+    result = await session.execute(select(Setting).where(Setting.key == key))
+    row = result.scalar_one_or_none()
+    return row.value if row else default
+
+
+async def set_setting(session, key: str, value: str) -> None:
+    result = await session.execute(select(Setting).where(Setting.key == key))
+    row = result.scalar_one_or_none()
+    if row:
+        row.value = value
+    else:
+        session.add(Setting(key=key, value=value))
+    await session.commit()
+
+
+async def is_sms_enabled(session) -> bool:
+    default = "true" if SMS_ENABLED_DEFAULT else "false"
+    value = await get_setting(session, SMS_ENABLED_KEY, default)
+    return value == "true"

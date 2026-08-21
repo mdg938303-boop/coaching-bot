@@ -44,5 +44,15 @@ REPORT_CLASS_MONTH_MONTH = next(_c)
 # ---- Broadcast ----
 BROADCAST_MESSAGE = next(_c)
 
+# ---- Fee management ----
+STUDENT_ADD_FEE = next(_c)
+FEE_PAY_CLASS = next(_c)
+FEE_PAY_STUDENT = next(_c)
+FEE_PAY_AMOUNT = next(_c)
+FEE_PAY_MONTH = next(_c)
+FEE_PAY_METHOD = next(_c)
+FEE_EDIT_AMOUNT = next(_c)
+FEE_REPORT_STUDENT_SEARCH = next(_c)
+
 # generic cancel text
 CANCEL_TEXT = "❌ Cancel"

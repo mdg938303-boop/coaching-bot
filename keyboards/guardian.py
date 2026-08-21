@@ -30,6 +30,7 @@ def children_list_inline(students) -> InlineKeyboardMarkup:
 def child_detail_inline(student_id: int) -> InlineKeyboardMarkup:
     buttons = [
         [InlineKeyboardButton("📅 Attendance History", callback_data=f"gch:history:{student_id}")],
+        [InlineKeyboardButton("💰 Fee Status", callback_data=f"gch:fee:{student_id}")],
         [InlineKeyboardButton("🔙 Back", callback_data="gch:list")],
     ]
     return InlineKeyboardMarkup(buttons)

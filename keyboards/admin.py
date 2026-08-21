@@ -10,6 +10,8 @@ BTN_STUDENTS = "👨‍🎓 Students"
 BTN_ATTENDANCE = "✅ Take Attendance"
 BTN_REPORTS = "📊 Attendance Reports"
 BTN_TEACHERS = "👨‍🏫 Teachers"
+BTN_FEES = "💰 Fees"
+BTN_SETTINGS = "⚙️ Settings"
 BTN_BROADCAST = "📢 Broadcast"
 BTN_LOGS = "📝 Activity Logs"
 BTN_CANCEL = "❌ Cancel"
@@ -22,8 +24,9 @@ def admin_main_menu(is_admin_user: bool) -> ReplyKeyboardMarkup:
         [BTN_ATTENDANCE, BTN_REPORTS],
     ]
     if is_admin_user:
-        rows.append([BTN_TEACHERS, BTN_BROADCAST])
-        rows.append([BTN_LOGS])
+        rows.append([BTN_TEACHERS, BTN_FEES])
+        rows.append([BTN_BROADCAST, BTN_LOGS])
+        rows.append([BTN_SETTINGS])
     return ReplyKeyboardMarkup(rows, resize_keyboard=True)
 
 
@@ -126,6 +129,7 @@ def student_edit_field_inline(student_id: int) -> InlineKeyboardMarkup:
         [InlineKeyboardButton("Roll Number", callback_data=f"stu:editfield:{student_id}:roll")],
         [InlineKeyboardButton("অভিভাবকের নম্বর", callback_data=f"stu:editfield:{student_id}:phone")],
         [InlineKeyboardButton("ঠিকানা", callback_data=f"stu:editfield:{student_id}:address")],
+        [InlineKeyboardButton("💰 মাসিক ফি", callback_data=f"stu:editfield:{student_id}:fee")],
         [InlineKeyboardButton("🔙 Back", callback_data=f"stu:view:{student_id}")],
     ]
     return InlineKeyboardMarkup(buttons)
@@ -208,4 +212,53 @@ def month_pick_inline(prefix: str) -> InlineKeyboardMarkup:
             row = []
     if row:
         buttons.append(row)
+    return InlineKeyboardMarkup(buttons)
+
+
+# ---------------------------------------------------------
+# FEE MANAGEMENT KEYBOARDS
+# ---------------------------------------------------------
+
+def fees_menu_inline() -> InlineKeyboardMarkup:
+    buttons = [
+        [InlineKeyboardButton("💰 Record Payment", callback_data="fee:pay:start")],
+        [InlineKeyboardButton("📋 Fee Status by Class", callback_data="fee:status:class")],
+        [InlineKeyboardButton("🧾 Student Fee History", callback_data="fee:history:search")],
+        [InlineKeyboardButton("📉 Due List (এই মাস)", callback_data="fee:due:list")],
+    ]
+    return InlineKeyboardMarkup(buttons)
+
+
+def fee_student_list_inline(students, class_id: int, month: str) -> InlineKeyboardMarkup:
+    buttons = [
+        [InlineKeyboardButton(f"{s.roll_number} - {s.name}", callback_data=f"feepay:student:{s.id}")]
+        for s in students
+    ]
+    buttons.append([InlineKeyboardButton("🔙 Back", callback_data="fee:pay:start")])
+    return InlineKeyboardMarkup(buttons)
+
+
+def payment_method_inline() -> InlineKeyboardMarkup:
+    from config import PAYMENT_METHODS
+    buttons = []
+    row = []
+    for m in PAYMENT_METHODS:
+        row.append(InlineKeyboardButton(m, callback_data=f"feepay:method:{m}"))
+        if len(row) == 2:
+            buttons.append(row)
+            row = []
+    if row:
+        buttons.append(row)
+    return InlineKeyboardMarkup(buttons)
+
+
+def settings_menu_inline(sms_enabled: bool, sms_configured: bool) -> InlineKeyboardMarkup:
+    toggle_text = "🔴 SMS নোটিফিকেশন বন্ধ করুন" if sms_enabled else "🟢 SMS নোটিফিকেশন চালু করুন"
+    buttons = []
+    if sms_configured:
+        buttons.append([InlineKeyboardButton(toggle_text, callback_data="settings:sms:toggle")])
+    else:
+        buttons.append(
+            [InlineKeyboardButton("⚠️ SMS_API_KEY সেট করা নেই (.env দেখুন)", callback_data="noop:info")]
+        )
     return InlineKeyboardMarkup(buttons)
