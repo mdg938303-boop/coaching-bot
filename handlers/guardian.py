@@ -17,6 +17,7 @@ from database.models import (
 )
 from keyboards import guardian as gkb
 from utils import states as st
+from utils.menu_guard import redirect_if_menu_button
 from utils.helpers import format_date, log_activity, percentage
 
 
@@ -28,6 +29,8 @@ async def link_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
 
 async def link_code_submit(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    if await redirect_if_menu_button(update, context):
+        return ConversationHandler.END
     code = update.message.text.strip()
     if code == gkb.BTN_CANCEL:
         context.user_data.clear()
@@ -226,6 +229,8 @@ link_conv = ConversationHandler(
         MessageHandler(filters.Regex(f"^{gkb.BTN_CANCEL}$"), link_start),
         CommandHandler("cancel", link_start),
     ],
+    allow_reentry=True,
+    conversation_timeout=600,
     name="guardian_link_conv",
 )
 

@@ -21,6 +21,7 @@ from services.fee_service import (
 )
 from services.notification_service import notify_guardian_fee_due
 from utils import states as st
+from utils.menu_guard import redirect_if_menu_button
 from utils.helpers import current_month_str, format_month, is_admin, log_activity
 
 
@@ -110,6 +111,8 @@ async def fee_pay_student(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 
 
 async def fee_pay_amount(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    if await redirect_if_menu_button(update, context):
+        return ConversationHandler.END
     text = update.message.text.strip()
     if text == akb.BTN_CANCEL:
         return await cancel_flow(update, context)
@@ -125,6 +128,8 @@ async def fee_pay_amount(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
 
 async def fee_pay_month(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    if await redirect_if_menu_button(update, context):
+        return ConversationHandler.END
     text = update.message.text.strip()
     if text == akb.BTN_CANCEL:
         return await cancel_flow(update, context)
@@ -196,6 +201,8 @@ fee_pay_conv = ConversationHandler(
         MessageHandler(filters.Regex("^{}$".format(akb.BTN_CANCEL)), cancel_flow),
         CommandHandler("cancel", cancel_flow),
     ],
+    allow_reentry=True,
+    conversation_timeout=600,
     name="fee_pay_conv",
 )
 
@@ -267,6 +274,8 @@ async def fee_history_search_start(update: Update, context: ContextTypes.DEFAULT
 
 
 async def fee_history_search_query(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    if await redirect_if_menu_button(update, context):
+        return ConversationHandler.END
     query = update.message.text.strip()
     if query == akb.BTN_CANCEL:
         return await cancel_flow(update, context)
@@ -328,6 +337,8 @@ fee_history_conv = ConversationHandler(
         MessageHandler(filters.Regex("^{}$".format(akb.BTN_CANCEL)), cancel_flow),
         CommandHandler("cancel", cancel_flow),
     ],
+    allow_reentry=True,
+    conversation_timeout=600,
     name="fee_history_conv",
 )
 

@@ -17,6 +17,7 @@ from database.models import AttendanceStatus, ClassRoom, Student, TeacherClassAs
 from keyboards import admin as akb
 from services.attendance_service import get_existing_record, submit_attendance
 from utils import states as st
+from utils.menu_guard import redirect_if_menu_button
 from utils.helpers import format_date, is_admin, is_teacher, parse_date_bn, get_teacher_class_ids
 
 
@@ -84,6 +85,8 @@ async def att_date_custom_prompt(update: Update, context: ContextTypes.DEFAULT_T
 
 
 async def att_date_custom_input(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    if await redirect_if_menu_button(update, context):
+        return ConversationHandler.END
     text = update.message.text.strip()
     if text == akb.BTN_CANCEL:
         context.user_data.pop("att", None)
@@ -301,5 +304,7 @@ attendance_conv = ConversationHandler(
         MessageHandler(filters.Regex(f"^{akb.BTN_CANCEL}$"), att_flow_cancel),
         CommandHandler("cancel", att_flow_cancel),
     ],
+    allow_reentry=True,
+    conversation_timeout=600,
     name="attendance_conv",
 )

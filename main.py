@@ -6,9 +6,9 @@ Bot এর entrypoint। Local-এ polling, Render-এর মতো জায়
 import asyncio
 import datetime as dt
 
-from telegram import BotCommand
+from telegram import BotCommand, Update
 from telegram.ext import (
-    Application, ApplicationBuilder, CommandHandler, MessageHandler, filters,
+    Application, ApplicationBuilder, CommandHandler, ContextTypes, MessageHandler, filters,
 )
 
 from config import (
@@ -50,8 +50,25 @@ async def post_init(application: Application):
     logger.info("✅ Bot initialized and ready.")
 
 
+async def global_error_handler(update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    যেকোনো handler-এ অপ্রত্যাশিত exception হলে এটা ধরে ফেলে — এতে বট চুপচাপ
+    'কিছুই না করে' পড়ে থাকার বদলে অন্তত error log হয় এবং ব্যবহারকারীকে একটা
+    বার্তা দেওয়া যায় (একদম silent failure এড়াতে)।
+    """
+    logger.error(f"Unhandled exception while processing update: {context.error}", exc_info=context.error)
+    try:
+        if isinstance(update, Update) and update.effective_message:
+            await update.effective_message.reply_text(
+                "⚠️ সাময়িক একটা সমস্যা হয়েছে। দয়া করে /start দিয়ে আবার চেষ্টা করুন।"
+            )
+    except Exception:
+        pass
+
+
 def build_application() -> Application:
     application = ApplicationBuilder().token(BOT_TOKEN).post_init(post_init).build()
+    application.add_error_handler(global_error_handler)
 
     # --- /start ও নেভিগেশন ---
     application.add_handler(CommandHandler("start", nav.start))

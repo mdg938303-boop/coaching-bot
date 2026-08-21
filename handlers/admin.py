@@ -19,6 +19,7 @@ from database.models import (
 )
 from keyboards import admin as akb
 from utils import states as st
+from utils.menu_guard import redirect_if_menu_button
 from utils.helpers import (
     is_admin, is_teacher, log_activity, unique_access_code, parse_date_bn,
     format_date, percentage,
@@ -64,6 +65,8 @@ async def cls_menu_add_start(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
 
 async def cls_add_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    if await redirect_if_menu_button(update, context):
+        return ConversationHandler.END
     name = update.message.text.strip()
     if not name or name == akb.BTN_CANCEL:
         return await cancel_flow(update, context)
@@ -76,6 +79,8 @@ async def cls_add_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
 
 
 async def cls_add_schedule(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    if await redirect_if_menu_button(update, context):
+        return ConversationHandler.END
     note = update.message.text.strip()
     if note == akb.BTN_CANCEL:
         return await cancel_flow(update, context)
@@ -208,6 +213,8 @@ async def cls_edit_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
 
 async def cls_edit_save(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    if await redirect_if_menu_button(update, context):
+        return ConversationHandler.END
     name = update.message.text.strip()
     if name == akb.BTN_CANCEL:
         return await cancel_flow(update, context)
@@ -239,6 +246,8 @@ class_add_conv = ConversationHandler(
         MessageHandler(filters.Regex(f"^{akb.BTN_CANCEL}$"), cancel_flow),
         CommandHandler("cancel", cancel_flow),
     ],
+    allow_reentry=True,
+    conversation_timeout=600,
     name="class_add_conv",
 )
 
@@ -251,6 +260,8 @@ class_edit_conv = ConversationHandler(
         MessageHandler(filters.Regex(f"^{akb.BTN_CANCEL}$"), cancel_flow),
         CommandHandler("cancel", cancel_flow),
     ],
+    allow_reentry=True,
+    conversation_timeout=600,
     name="class_edit_conv",
 )
 
@@ -290,6 +301,8 @@ async def stu_add_class(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
 
 
 async def stu_add_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    if await redirect_if_menu_button(update, context):
+        return ConversationHandler.END
     name = update.message.text.strip()
     if name == akb.BTN_CANCEL:
         return await cancel_flow(update, context)
@@ -299,6 +312,8 @@ async def stu_add_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
 
 
 async def stu_add_roll(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    if await redirect_if_menu_button(update, context):
+        return ConversationHandler.END
     roll = update.message.text.strip()
     if roll == akb.BTN_CANCEL:
         return await cancel_flow(update, context)
@@ -318,6 +333,8 @@ async def stu_add_roll(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
 
 
 async def stu_add_phone(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    if await redirect_if_menu_button(update, context):
+        return ConversationHandler.END
     phone = update.message.text.strip()
     if phone == akb.BTN_CANCEL:
         return await cancel_flow(update, context)
@@ -327,6 +344,8 @@ async def stu_add_phone(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
 
 
 async def stu_add_address(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    if await redirect_if_menu_button(update, context):
+        return ConversationHandler.END
     address = update.message.text.strip()
     if address == akb.BTN_CANCEL:
         return await cancel_flow(update, context)
@@ -338,6 +357,8 @@ async def stu_add_address(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 
 
 async def stu_add_admission_date(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    if await redirect_if_menu_button(update, context):
+        return ConversationHandler.END
     text = update.message.text.strip()
     if text == akb.BTN_CANCEL:
         return await cancel_flow(update, context)
@@ -357,6 +378,8 @@ async def stu_add_admission_date(update: Update, context: ContextTypes.DEFAULT_T
 
 
 async def stu_add_fee(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    if await redirect_if_menu_button(update, context):
+        return ConversationHandler.END
     text = update.message.text.strip()
     if text == akb.BTN_CANCEL:
         return await cancel_flow(update, context)
@@ -520,6 +543,8 @@ async def stu_search_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 
 
 async def stu_search_query(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    if await redirect_if_menu_button(update, context):
+        return ConversationHandler.END
     query = update.message.text.strip()
     if query == akb.BTN_CANCEL:
         return await cancel_flow(update, context)
@@ -629,6 +654,8 @@ async def stu_editfield_start(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 
 async def stu_editfield_save(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    if await redirect_if_menu_button(update, context):
+        return ConversationHandler.END
     value = update.message.text.strip()
     if value == akb.BTN_CANCEL:
         return await cancel_flow(update, context)
@@ -721,6 +748,8 @@ student_add_conv = ConversationHandler(
         MessageHandler(filters.Regex(f"^{akb.BTN_CANCEL}$"), cancel_flow),
         CommandHandler("cancel", cancel_flow),
     ],
+    allow_reentry=True,
+    conversation_timeout=600,
     name="student_add_conv",
 )
 
@@ -733,6 +762,8 @@ student_search_conv = ConversationHandler(
         MessageHandler(filters.Regex(f"^{akb.BTN_CANCEL}$"), cancel_flow),
         CommandHandler("cancel", cancel_flow),
     ],
+    allow_reentry=True,
+    conversation_timeout=600,
     name="student_search_conv",
 )
 
@@ -745,6 +776,8 @@ student_editfield_conv = ConversationHandler(
         MessageHandler(filters.Regex(f"^{akb.BTN_CANCEL}$"), cancel_flow),
         CommandHandler("cancel", cancel_flow),
     ],
+    allow_reentry=True,
+    conversation_timeout=600,
     name="student_editfield_conv",
 )
 
@@ -764,6 +797,8 @@ async def tch_add_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
 
 
 async def tch_add_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    if await redirect_if_menu_button(update, context):
+        return ConversationHandler.END
     name = update.message.text.strip()
     if name == akb.BTN_CANCEL:
         return await cancel_flow(update, context)
@@ -775,6 +810,8 @@ async def tch_add_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
 
 
 async def tch_add_id(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    if await redirect_if_menu_button(update, context):
+        return ConversationHandler.END
     text = update.message.text.strip()
     if text == akb.BTN_CANCEL:
         return await cancel_flow(update, context)
@@ -986,6 +1023,8 @@ teacher_add_conv = ConversationHandler(
         MessageHandler(filters.Regex(f"^{akb.BTN_CANCEL}$"), cancel_flow),
         CommandHandler("cancel", cancel_flow),
     ],
+    allow_reentry=True,
+    conversation_timeout=600,
     name="teacher_add_conv",
 )
 
@@ -1036,6 +1075,8 @@ async def rep_student_start(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 
 
 async def rep_student_query(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    if await redirect_if_menu_button(update, context):
+        return ConversationHandler.END
     query = update.message.text.strip()
     if query == akb.BTN_CANCEL:
         return await cancel_flow(update, context)
@@ -1189,6 +1230,8 @@ report_student_conv = ConversationHandler(
         MessageHandler(filters.Regex(f"^{akb.BTN_CANCEL}$"), cancel_flow),
         CommandHandler("cancel", cancel_flow),
     ],
+    allow_reentry=True,
+    conversation_timeout=600,
     name="report_student_conv",
 )
 
@@ -1208,6 +1251,8 @@ async def broadcast_start(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 
 
 async def broadcast_send(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    if await redirect_if_menu_button(update, context):
+        return ConversationHandler.END
     text = update.message.text.strip()
     if text == akb.BTN_CANCEL:
         return await cancel_flow(update, context)
@@ -1246,6 +1291,8 @@ broadcast_conv = ConversationHandler(
         MessageHandler(filters.Regex(f"^{akb.BTN_CANCEL}$"), cancel_flow),
         CommandHandler("cancel", cancel_flow),
     ],
+    allow_reentry=True,
+    conversation_timeout=600,
     name="broadcast_conv",
 )
 
